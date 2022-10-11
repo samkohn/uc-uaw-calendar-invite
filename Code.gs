@@ -22,10 +22,80 @@ limitations under the License.
  */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Invites')
-      .addItem('Set up form & invitations', 'setUpConference_')
-      .addItem('Update with new events', 'addNewEvents_')
+      .addItem('Set up new form & new invitations', 'setUpConference_')
+      //.addItem('Update with new events', 'addNewEvents_')
+      .addItem('Connect to existing form, create new invitations', 'connectForm_')
       .addItem('Reset', 'resetProperties')
       .addToUi();
+}
+
+/**
+ * Connect an existing form to this spreadsheet
+ */
+function connectForm_() {
+  let ss = SpreadsheetApp.getActive();
+  let ui = SpreadsheetApp.getUi();
+
+  let sheetName = 'Event Setup';
+  let sheet = ss.getSheetByName(sheetName);
+  if(!sheet) {
+    Browser.msgBox('Can\'t find a sheet named "' + sheetName + '". Aborting...');
+    return;
+  }
+  let range = sheet.getDataRange();
+  let values = range.getValues();
+  let url = values[0][6];
+  // If URL isn't already provided, prompt for it
+  if (url.length == 0) {
+    let response = ui.prompt('Enter the form\'s "edit" URL (that you use to edit the form, not fill it out)');
+    if (response.getSelectedButton() != ui.Button.OK) {
+      Browser.msgBox('Ok, aborting.');
+      return;
+    }
+    url = response.getResponseText();
+    // Record the form URL in the spreadsheet
+    values[0][6] = url;
+    range.setValues(values);
+  }
+  let form = FormApp.openByUrl(url);
+  // Try to identify the item containing the event schedule
+  let response = ui.prompt('Copy/paste the question/prompt that has the checkboxes for the events. E.g. "Which event can you make?"')
+  if (response.getSelectedButton() != ui.Button.OK) {
+    Browser.msgBox('Ok, aborting.');
+    return;
+  }
+  let itemTitle = response.getResponseText();
+  let items = form.getItems();
+  let itemId = '';
+  for(let i in items) {
+    let item = items[i];
+    if (item.getTitle() == itemTitle) {
+      itemId = item.getId();
+    }
+  }
+  if (itemId == '') {
+    Browser.msgBox('Can\'t find an item with title "' + itemTitle + '". Aborting...');
+    return;
+  }
+  let item = form.getItemById(itemId).asCheckboxItem();
+  let scriptProperties = PropertiesService.getScriptProperties();
+  scriptProperties.setProperty('questionName', item.getTitle());
+  scriptProperties.setProperty('formId', form.getId());
+  form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
+
+  // Update item options to match our format of "Title | Date time 
+  let choices = [];
+  for (let i = 1; i < values.length; i++) {
+    let session = values[i];
+    let day = session[1].toLocaleDateString();
+    let time = session[2].toLocaleTimeString();
+    choices.push(session[0] + ' | ' + day + ' ' + time);
+  }
+  item.setChoiceValues(choices);
+  
+  setUpCalendar_(values, range);
+  ScriptApp.newTrigger('onFormSubmit').forSpreadsheet(ss).onFormSubmit()
+      .create();
 }
 
 /**
