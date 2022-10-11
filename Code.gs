@@ -22,13 +22,16 @@ limitations under the License.
  */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Invites')
-      .addItem('Set up new form & new invitations', 'setUpConference_')
-      //.addItem('Update with new events', 'addNewEvents_')
-      .addItem('Connect to existing form, create new invitations', 'connectForm_')
-      .addItem('Reset', 'resetProperties')
-      .addToUi();
+    .addItem('Set up new form & new invitations', 'setUpConference_')
+    .addItem('Update with new events', 'addNewEvents_')
+    .addItem('Connect to existing form, create new invitations', 'connectForm_')
+    .addItem('Reset', 'resetProperties')
+    .addToUi();
 }
 
+function showSuccessMessage_() {
+  Browser.msgBox("Success! Please check on your calendar to make sure the event times are correct. They sometimes are off by an hour and/or a day. You can adjust them by editing the calendar event. Everything else will still work.");
+}
 /**
  * Connect an existing form to this spreadsheet
  */
@@ -38,7 +41,7 @@ function connectForm_() {
 
   let sheetName = 'Event Setup';
   let sheet = ss.getSheetByName(sheetName);
-  if(!sheet) {
+  if (!sheet) {
     Browser.msgBox('Can\'t find a sheet named "' + sheetName + '". Aborting...');
     return;
   }
@@ -67,7 +70,7 @@ function connectForm_() {
   let itemTitle = response.getResponseText();
   let items = form.getItems();
   let itemId = '';
-  for(let i in items) {
+  for (let i in items) {
     let item = items[i];
     if (item.getTitle() == itemTitle) {
       itemId = item.getId();
@@ -81,6 +84,7 @@ function connectForm_() {
   let scriptProperties = PropertiesService.getScriptProperties();
   scriptProperties.setProperty('questionName', item.getTitle());
   scriptProperties.setProperty('formId', form.getId());
+  scriptProperties.setProperty('itemId', itemId);
   form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
 
   // Update item options to match our format of "Title | Date time 
@@ -92,10 +96,11 @@ function connectForm_() {
     choices.push(session[0] + ' | ' + day + ' ' + time);
   }
   item.setChoiceValues(choices);
-  
+
   setUpCalendar_(values, range);
   ScriptApp.newTrigger('onFormSubmit').forSpreadsheet(ss).onFormSubmit()
-      .create();
+    .create();
+  showSuccessMessage_();
 }
 
 /**
@@ -107,21 +112,21 @@ function setUpConference_() {
   let scriptProperties = PropertiesService.getScriptProperties();
   if (scriptProperties.getProperty('calId')) {
     Browser.msgBox('Your form is already set up. Look in Google Drive for your'
-                   + ' sign-up form!');
-                   return;
+      + ' sign-up form!');
+    return;
   }
   let ss = SpreadsheetApp.getActive();
   let sheetName = 'Event Setup';
   let sheet = ss.getSheetByName(sheetName);
-  if(!sheet) {
+  if (!sheet) {
     Browser.msgBox('Can\'t find a sheet named "' + sheetName + '". Aborting...');
     return;
   }
   let ui = SpreadsheetApp.getUi();
   let response = ui.prompt('Enter the question you want to use on the form for event selection. E.g. Which trainings will you attend?');
-  if(response.getSelectedButton() != ui.Button.OK) {
-      Browser.msgBox('Ok, aborting.');
-      return;
+  if (response.getSelectedButton() != ui.Button.OK) {
+    Browser.msgBox('Ok, aborting.');
+    return;
   }
   let questionName = response.getResponseText();
   scriptProperties.setProperty('questionName', questionName);
@@ -130,7 +135,9 @@ function setUpConference_() {
   setUpCalendar_(values, range);
   setUpForm_(ss, values);
   ScriptApp.newTrigger('onFormSubmit').forSpreadsheet(ss).onFormSubmit()
-      .create();
+    .create();
+  showSuccessMessage_();
+
 }
 
 /**
@@ -139,7 +146,7 @@ function setUpConference_() {
  * @param {Array<string[]>} values Cell values for the spreadsheet range.
  * @param {Range} range A spreadsheet range that contains conference data.
  */
-function setUpCalendar_(values, range) {  
+function setUpCalendar_(values, range) {
   let cal = CalendarApp.createCalendar('Event Calendar');
   // Start at 1 to skip the header row.
   for (let i = 1; i < values.length; i++) {
@@ -147,9 +154,9 @@ function setUpCalendar_(values, range) {
     let title = session[0];
     let start = joinDateAndTime_(session[1], session[2]);
     let end = joinDateAndTime_(session[1], session[3]);
-    let options = {location: session[4], sendInvites: true};
+    let options = { location: session[4], sendInvites: true };
     let event = cal.createEvent(title, start, end, options)
-        .setGuestsCanSeeGuests(false);
+      .setGuestsCanSeeGuests(true);
     session[5] = event.getId();
   }
   range.setValues(values);
@@ -163,7 +170,7 @@ function addNewEvents_() {
   let ss = SpreadsheetApp.getActive();
   let sheetName = 'Event Setup';
   let sheet = ss.getSheetByName(sheetName);
-  if(!sheet) {
+  if (!sheet) {
     Browser.msgBox('Can\'t find a sheet named "' + sheetName + '". Aborting...');
     return;
   }
@@ -197,27 +204,40 @@ function addNewEvents_() {
   // Start at 1 to skip the header row.
   for (let i = 1; i < values.length; i++) {
     let session = values[i];
-    if (session[5].length > 0) {
+    if (session[5].length == 0) {
       let title = session[0];
       let start = joinDateAndTime_(session[1], session[2]);
       let end = joinDateAndTime_(session[1], session[3]);
-      let options = {location: session[4], sendInvites: true};
+      let options = { location: session[4], sendInvites: true };
       let event = cal.createEvent(title, start, end, options)
-          .setGuestsCanSeeGuests(false);
+        .setGuestsCanSeeGuests(true);
       session[5] = event.getId();
-      let day = session[1].toLocaleDateString();
-      let time = session[2].toLocaleTimeString();
-      choices.push(item.createChoice(session[0] + ' | ' + day + ' ' + time));
+      //let day = session[1].toLocaleDateString();
+      //let time = session[2].toLocaleTimeString();
+      
     }
+
+    let start = joinDateAndTime_(session[1], session[2]);
+    let end = joinDateAndTime_(session[1], session[3]);
+    choices.push(item.createChoice(session[0] + ' | ' + eventTimeString_(start, end)));
   }
   range.setValues(values);
   item.setChoices(choices);
+  showSuccessMessage_();
 
 }
 
 function test() {
-  let properties = PropertiesService.getScriptProperties().getProperties();
-  Logger.log(properties);
+  let start = new Date();
+  start.setHours(15);
+  start.setMinutes(0);
+  let end = new Date();
+  end.setHours(18);
+  end.setMinutes(0);
+  console.log(dayToString_(start) + ', ' + timeRangeString_(start, end));
+  console.log(Session.getScriptTimeZone())
+  console.log(SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone())
+
 }
 
 /**
@@ -232,6 +252,75 @@ function joinDateAndTime_(date, time) {
   date.setHours(time.getHours());
   date.setMinutes(time.getMinutes());
   return date;
+}
+
+/**
+ * Convert a Date object to a good Date string for events: Sunday, Oct. 9.
+ * 
+ * @param {Date} date
+ * @return {String} result The date in Sunday, Oct. 9 format.
+ */
+function dayToString_(date) {
+  let DAY_LOOKUP = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  let MONTH_LOOKUP = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'Jun.', 'Jul.', 'Aug.', 'Sept.', 'Oct.', 'Nov.', 'Dec.'];
+  let dayOfWeekIndex = date.getDay();
+  let dayOfWeek = DAY_LOOKUP[dayOfWeekIndex];
+  let monthIndex = date.getMonth();
+  let month = MONTH_LOOKUP[monthIndex];
+  let dayOfMonth = date.getDate();
+  return dayOfWeek + ', ' + month + ' ' + dayOfMonth;
+}
+
+/**
+ * Convert 2 Date objects representing start and end times to a good text string.
+ * 
+ * This function ignores the day, month and year and only pays attention to the time.
+ * This means it won't work if the range spans midnight.
+ * 
+ * - 5-7pm
+ * - 4:00 - 5:30pm
+ * - 11am - 12pm
+ */
+function timeRangeString_(start, end) {
+  // test for if we can ignore minutes
+  let startMinutes = start.getMinutes();
+  let endMinutes = end.getMinutes();
+  let ignoreMinutes = (startMinutes == 0 && endMinutes == 0);
+  if (!ignoreMinutes) {
+    startMinutes = (startMinutes < 10) ? '0' + startMinutes : startMinutes;
+    endMinutes = (endMinutes < 10) ? '0' + endMinutes : endMinutes;
+  }
+
+  // test if they have the same AM / PM value
+  let startHoursIndex = start.getHours();
+  let endHoursIndex = end.getHours();
+  let startIsAm = startHoursIndex < 12;
+  let startAmStr = startIsAm ? 'am' : 'pm';
+  let endIsAm = endHoursIndex < 12;
+  let endAmStr = endIsAm ? 'am' : 'pm';
+  let sameAmPm = (startIsAm == endIsAm);
+  let startHours = ((startHoursIndex - 1) % 12) + 1;
+  let endHours = ((endHoursIndex - 1) % 12) + 1;
+
+  if (ignoreMinutes && sameAmPm) {
+    return startHours + '-' + endHours + endAmStr;
+  }
+  else if (!ignoreMinutes && sameAmPm) {
+    return startHours + ':' + startMinutes + ' - ' + endHours + ':' + endMinutes + endAmStr;
+  }
+  else if (ignoreMinutes && !sameAmPm) {
+    return startHours + startAmStr + ' - ' + endHours + endAmStr;
+  }
+  else {
+    return startHours + ':' + startMinutes + startAmStr + ' - ' + endHours + ':' + endMinutes + endAmStr;
+  }
+}
+
+/**
+ * Convert a start Date and end Date into: Sunday, Oct. 9 3-5pm.
+ */
+function eventTimeString_(start, end) {
+  return dayToString_(start) + ', ' + timeRangeString_(start, end);
 }
 
 /**
@@ -276,9 +365,11 @@ function setUpForm_(ss, values) {
   let choices = [];
   for (let i = 1; i < values.length; i++) {
     let session = values[i];
-    let day = session[1].toLocaleDateString();
-    let time = session[2].toLocaleTimeString();
-    choices.push(session[0] + ' | ' + day + ' ' + time);
+    //let day = session[1].toLocaleDateString();
+    //let time = session[2].toLocaleTimeString();
+    let start = joinDateAndTime_(session[1], session[2]);
+    let end = joinDateAndTime_(session[1], session[3]);
+    choices.push(session[0] + ' | ' + eventTimeString_(start, end));
   }
   item.setChoiceValues(choices);
   /*
@@ -300,12 +391,12 @@ function setUpForm_(ss, values) {
  *     see https://developers.google.com/apps-script/understanding_events
  */
 function onFormSubmit(e) {
-  let user = {name: e.namedValues['Name'][0], email: e.namedValues['Email'][0]};
+  let user = { name: e.namedValues['Name'][0], email: e.namedValues['Email'][0] };
 
   // Grab the session data again so that we can match it to the user's choices.
   let response = [];
   let values = SpreadsheetApp.getActive().getSheetByName('Event Setup')
-      .getDataRange().getValues();
+    .getDataRange().getValues();
   let questionName = PropertiesService.getScriptProperties().getProperty('questionName');
   let responses = e.namedValues[questionName][0];
   Logger.log(questionName);
@@ -316,7 +407,9 @@ function onFormSubmit(e) {
     let title = session[0];
     let day = session[1].toLocaleDateString();
     let time = session[2].toLocaleTimeString();
-    let timeslot = day + ' ' + time;
+    let start = joinDateAndTime_(session[1], session[2]);
+    let end = joinDateAndTime_(session[1], session[3]);
+    let timeslot = eventTimeString_(start, end);
     let eventName = title + ' | ' + timeslot;
     Logger.log(eventName);
     // For every selection in the response, find the matching timeslot and title
@@ -365,15 +458,15 @@ function sendInvites_(user, response) {
  */
 function sendDoc_(user, response) {
   let doc = DocumentApp.create('Conference Itinerary for ' + user.name)
-      .addEditor(user.email);
+    .addEditor(user.email);
   let body = doc.getBody();
   let table = [['Session', 'Date', 'Time', 'Location']];
   for (let i = 0; i < response.length; i++) {
     table.push([response[i][0], response[i][1].toLocaleDateString(),
-      response[i][2].toLocaleTimeString(), response[i][4]]);
+    response[i][2].toLocaleTimeString(), response[i][4]]);
   }
   body.insertParagraph(0, doc.getName())
-      .setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    .setHeading(DocumentApp.ParagraphHeading.HEADING1);
   table = body.appendTable(table);
   table.getRow(0).editAsText().setBold(true);
   doc.saveAndClose();
@@ -390,7 +483,7 @@ function sendDoc_(user, response) {
 /**
  * Removes the calId script property so that the 'setUpConference_()' can be run again.
  */
-function resetProperties(){
+function resetProperties() {
   let scriptProperties = PropertiesService.getScriptProperties();
   scriptProperties.deleteAllProperties();
 }
