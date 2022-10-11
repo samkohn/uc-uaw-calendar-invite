@@ -93,7 +93,10 @@ function connectForm_() {
     let session = values[i];
     let day = session[1].toLocaleDateString();
     let time = session[2].toLocaleTimeString();
-    choices.push(session[0] + ' | ' + day + ' ' + time);
+    let start = joinDateAndTime_(session[1], session[2]);
+    let end = joinDateAndTime_(session[1], session[3]);
+    let timeslot = eventTimeString_(start, end);
+    choices.push(session[0] + ' | ' + timeslot);
   }
   item.setChoiceValues(choices);
 
