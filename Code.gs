@@ -438,6 +438,7 @@ function onFormSubmit(e) {
     */
   }
   sendInvites_(user, response);
+  sendConfirmation_(user, response);
   //sendDoc_(user, response);
 }
 
@@ -452,6 +453,36 @@ function sendInvites_(user, response) {
   for (let i = 0; i < response.length; i++) {
     cal.getEventSeriesById(response[i][5]).addGuest(user.email);
   }
+}
+
+/**
+ * Send a confirmation email
+ */
+function sendConfirmation_(user, response) {
+  let body = "Hi " + user.name + ",\n\n";
+  body += "The following events have been added to your calendar:\n\n"
+  let events = [];
+  for (let i in response) {
+    let event = response[i];
+    let start = joinDateAndTime_(event[1], event[2]);
+    let end = joinDateAndTime_(event[1], event[3]);
+    let timeslot = eventTimeString_(start, end);
+    let title = event[0];
+    let eventName = title + ' | ' + timeslot;
+    events.push(eventName);
+  }
+  for (let i in events) {
+    body += events[i] + "\n";
+  }
+  body += "\nSee you there!";
+
+  let subject = "Confirmation for upcoming events";
+  let email = {
+    to: user.email,
+    subject: subject,
+    body: body,
+  };
+  MailApp.sendEmail(email);
 }
 
 /**
